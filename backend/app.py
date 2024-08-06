@@ -1,4 +1,4 @@
-import requests
+
 import os
 from openai import OpenAI
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -10,18 +10,18 @@ load_dotenv()
 client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-def main():
-    link = 'mT4cqHc4HqU'
-    summary = ask(link)
-    print(summary)
+def parse_link(video_link):
+    return video_link.split('v=')[-1]
 
 @app.route("/ask", methods=["POST"])
 def ask():
-    link = request.json.get('link')
-    #FIXME parse link to get video id 
-    videoID = link
+    data = request.json
+    link = data.get('link')
+    if not link:
+        return jsonify({"error": "No link provided"}), 400
+    videoID = parse_link(link)
     response = YouTubeTranscriptApi.get_transcript(videoID)
     message = ''
     for i in response:
@@ -32,9 +32,7 @@ def ask():
         messages=[
             {
             "role": "system",
-            "content": [
-                {
-                "text": '''You are an assistant that gets the key points of the passed in message and 
+            "content": '''You are an assistant that gets the key points of the passed in message and 
                         returns a summary of what is said.  Skip any introductory or unimportant parts 
                         in your summary.  The summary should contain facts and tips mentioned in the 
                         message.  Only use what's in the message for the summary.\n\nIf the message contains 
@@ -46,19 +44,11 @@ def ask():
                         and should not contain any information not relating to the main theme of the message.  
                         For example, do not include advertisements, only instructions or events that pertain to the 
                         original message. There should also be a title. Add a tips section as well if the message details
-                        them.''',
-                "type": "text"
-                }
-            ]
+                        them.'''
             },
             {
             "role": "user",
-            "content": [
-                {
-                "type": "text",
-                "text": message
-                }
-            ]
+            "content": message
             }
         ],
         temperature=0.7,
@@ -72,5 +62,4 @@ def ask():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    # main()
     app.run()
